@@ -36,7 +36,7 @@ automation created from this blueprint handles both directions.
 | --- | --- | --- | --- |
 | First cover | yes | – | One of the two covers to keep in sync. |
 | Second cover | yes | – | The other cover to keep in sync. |
-| Exact position sync | no | on | When one cover stops, move the other one to the exact same position instead of just stopping it. Requires calibrated (position-capable) covers. |
+| Exact position sync | no | on | When one cover stops, let the other one continue to the exact same position instead of stopping it immediately. Requires calibrated (position-capable) covers. |
 
 ## How it works
 
@@ -49,28 +49,48 @@ is the cover that changed and *target* is the other one:
 2. Source started **closing** and the target is not already closing (and not
    fully closed) → `cover.close_cover` on the target.
 3. Source **stopped** (went from `opening`/`closing` to `open`/`closed`)
-   while the target is still moving → `cover.set_cover_position` on the
-   target with the source's current position (or `cover.stop_cover` if
-   position sync is off or positions are unavailable).
+   while the target is still moving → the target is sent to the source's
+   position with `cover.set_cover_position` if that only means *continuing*
+   its current travel; otherwise (target already at or past the source's
+   position, positions unavailable, or position sync disabled) the target is
+   simply stopped with `cover.stop_cover`.
 
 ### Loop protection
 
 Synchronizing two entities in both directions normally risks an infinite
 feedback loop (A moves B, B's state change moves A, …). This blueprint
-avoids that without helpers or timestamps:
+stacks three mechanisms, and still needs no helper entities:
 
-- Mirror commands are only sent when the target is *not already doing the
-  same thing*. When cover B starts opening because this automation told it
+- **Mirror commands are only sent when the target is not already doing the
+  same thing.** When cover B starts opening because this automation told it
   to, B's own state change triggers the automation again — but its target
   (cover A) is already opening, so nothing happens.
-- Rule 3 only ever touches a cover that is *currently moving*. When B is
-  stopped at A's position, B's stop event triggers the automation again —
-  but A is already stationary, so the chain always terminates. A stationary
-  cover is deliberately never "nudged" to a new position, because that is
-  exactly what would start a ping-pong loop.
+- **A position command never reverses the follower.** Rule 3 only uses
+  `cover.set_cover_position` when the follower keeps moving in its current
+  direction. A reversal would emit a genuine `opening`/`closing` state that
+  is indistinguishable from a button press and would be mirrored back —
+  the classic ping-pong loop. If the follower has already passed the
+  source's position it is stopped instead, which can leave the two covers a
+  few percent apart (they re-align on the next full open/close). Rule 3
+  also only ever touches a cover that is *currently moving* — a stationary
+  cover is never "nudged".
+- **A 2-second echo guard on the mirror rules.** After the automation has
+  commanded a cover, movement state changes within the next 2 seconds are
+  treated as echoes of that command and are not mirrored back. Only runs
+  that actually command a cover count for this window, so it does not
+  extend itself. Side effect worth knowing: a *contradictory* button press
+  on the other cover within 2 seconds of a sync command is not mirrored —
+  each cover then does its own thing until the next command re-syncs them.
 
 State changes from or to `unavailable`/`unknown` (Home Assistant restarts,
 devices dropping off the network) are ignored.
+
+## Updating the blueprint
+
+Imported blueprints do **not** update automatically. To get a new version,
+open **Settings → Automations & Scenes → Blueprints**, click the three-dot
+menu on *Sync Two Covers* and choose **Re-import blueprint**. Existing
+automations pick up the new logic immediately after the re-import.
 
 ## Testing checklist
 
@@ -92,7 +112,13 @@ After creating the automation, verify the behavior:
 - **Nothing happens at all** — check the automation's trace in Home
   Assistant (Settings → Automations → your automation → Traces). If the
   trigger never fires, the cover integration may not report
-  `opening`/`closing` states.
+  `opening`/`closing` states. Note that traces only show runs that actually
+  commanded a cover; ignored echoes and no-op events are filtered out by the
+  automation's conditions and don't appear.
+- **A button press on the second cover is ignored** — presses within 2
+  seconds of the last sync command fall into the echo guard window (see
+  *Loop protection*) and are deliberately not mirrored. Press again a
+  moment later.
 - **Covers move on Home Assistant restart** — they shouldn't: transitions
   involving `unavailable`/`unknown` are filtered out. If you see this,
   please open an issue with the automation trace attached.
