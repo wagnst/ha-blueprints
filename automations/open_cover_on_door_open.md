@@ -2,6 +2,9 @@
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fopen_cover_on_door_open.yaml)
 
+Questions or feedback? Join the
+[community forum topic](https://community.home-assistant.io/t/open-cover-on-door-open-balcony-door-raises-the-shutter-with-optional-position-restore/1020575).
+
 Opens a cover when a door is opened. Typical use case: a balcony door with
 a roller shutter — when you open the door to go outside, the shutter opens
 automatically.
