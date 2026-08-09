@@ -38,6 +38,19 @@ protection, no helper entities required.
 
 [Code](automations/sync_two_covers.yaml) · [Documentation](automations/sync_two_covers.md)
 
+### [Open Cover on Door Open](automations/open_cover_on_door_open.md)
+
+Opens a cover when a door is opened — e.g. a balcony door whose shutter
+should rise automatically when you step outside. Acts only on the
+closed → open transition and never interferes while the door stays open,
+so manually lowering the cover with the door open is always respected.
+Optionally memorizes the previous position and restores it after the door
+is closed, unless the cover was moved in the meantime.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fopen_cover_on_door_open.yaml)
+
+[Code](automations/open_cover_on_door_open.yaml) · [Documentation](automations/open_cover_on_door_open.md)
+
 ## License
 
 [MIT](LICENSE)
