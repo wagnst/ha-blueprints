@@ -36,7 +36,7 @@ protection, no helper entities required.
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fsync_two_covers.yaml)
 
-[Code](automations/sync_two_covers.yaml) · [Documentation](automations/sync_two_covers.md)
+[Code](automations/sync_two_covers.yaml) · [Documentation](automations/sync_two_covers.md) · [Community forum](https://community.home-assistant.io/t/sync-two-covers-keep-two-roller-shutters-perfectly-in-sync-bidirectional-loop-safe/1020570)
 
 ### [Open Cover on Door Open](automations/open_cover_on_door_open.md)
 
@@ -49,7 +49,7 @@ is closed, unless the cover was moved in the meantime.
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fopen_cover_on_door_open.yaml)
 
-[Code](automations/open_cover_on_door_open.yaml) · [Documentation](automations/open_cover_on_door_open.md)
+[Code](automations/open_cover_on_door_open.yaml) · [Documentation](automations/open_cover_on_door_open.md) · [Community forum](https://community.home-assistant.io/t/open-cover-on-door-open-balcony-door-raises-the-shutter-with-optional-position-restore/1020575)
 
 ## License
 
