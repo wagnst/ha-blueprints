@@ -1,6 +1,6 @@
 # Sync Two Covers
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Fblob%2Fmain%2Fautomations%2Fsync_two_covers.yaml)
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fsync_two_covers.yaml)
 
 Keeps two covers (e.g. roller shutters) in sync, **bidirectionally**. No
 matter which of the two covers is controlled — a wall button (e.g. a Shelly
@@ -87,9 +87,12 @@ devices dropping off the network) are ignored.
 
 ## Updating the blueprint
 
-Imported blueprints do **not** update automatically. To get a new version,
-open **Settings → Automations & Scenes → Blueprints**, click the three-dot
-menu on *Sync Two Covers* and choose **Re-import blueprint**. Existing
+Every merged change to this blueprint automatically creates a
+[GitHub release](https://github.com/wagnst/ha-blueprints/releases), and the
+import URL always points at the latest release. Imported blueprints still do **not** update automatically in
+Home Assistant, though: to get the newest version, open
+**Settings → Automations & Scenes → Blueprints**, click the three-dot menu
+on *Sync Two Covers* and choose **Re-import blueprint**. Existing
 automations pick up the new logic immediately after the re-import.
 
 ## Testing checklist

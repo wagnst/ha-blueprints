@@ -12,7 +12,9 @@ blueprint:
   author: Steffen Wagner
   homeassistant:
     min_version: 2024.10.0
-  source_url: https://github.com/wagnst/ha-blueprints/blob/main/automations/sync_two_covers.yaml
+  # Points at the latest GitHub release asset, so re-importing the blueprint
+  # always fetches the newest released version.
+  source_url: https://github.com/wagnst/ha-blueprints/releases/latest/download/sync_two_covers.yaml
   input:
     cover_a:
       name: First cover
