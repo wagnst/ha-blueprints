@@ -1,0 +1,41 @@
+name: Release blueprints
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "automations/**.yaml"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute next version tag
+        id: version
+        run: |
+          base="v$(date -u +%Y.%-m.%-d)"
+          tag="$base"
+          n=1
+          while git rev-parse -q --verify "refs/tags/$tag" >/dev/null; do
+            tag="$base.$n"
+            n=$((n + 1))
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Create release with blueprint assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # Blueprint files are attached as flat release assets, so the stable
+        # URL releases/latest/download/<file>.yaml always serves the newest
+        # version. Filenames must therefore be unique across automations/.
+        run: |
+          find automations -name '*.yaml' -print0 | xargs -0 gh release create \
+            "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
