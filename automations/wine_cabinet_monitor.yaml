@@ -1,0 +1,387 @@
+blueprint:
+  name: Wine Cabinet Monitor
+  description: >-
+    Watches a wine cabinet's temperature sensor (and optionally its humidity
+    sensor) and notifies you when storage conditions drift out of range: too
+    warm, too cold, too humid, too dry, the sensor dropping offline, or too
+    much temperature swing over the day. Every alert has a duration guard so
+    normal compressor cycling and door openings never page you, and every
+    alert is followed by a recovery message once conditions are back in
+    range. Alerts are also shown as persistent notifications in Home
+    Assistant, which are dismissed automatically on recovery. No helper
+    entities required — the optional swing check uses one statistics helper.
+  domain: automation
+  author: Steffen Wagner
+  homeassistant:
+    min_version: 2024.10.0
+  # Points at the latest GitHub release asset, so re-importing the blueprint
+  # always fetches the newest released version.
+  source_url: https://github.com/wagnst/ha-blueprints/releases/latest/download/wine_cabinet_monitor.yaml
+  input:
+    cabinet_name:
+      name: Cabinet name
+      description: >-
+        Used in notifications, e.g. "Garage cabinet A". One automation per
+        cabinet — give each its own name.
+      default: Wine cabinet
+      selector:
+        text: {}
+    temperature_sensor:
+      name: Temperature sensor
+      description: >-
+        The cabinet's temperature sensor (e.g. a Shelly H&T placed mid-height
+        on a shelf, not on the floor or against the back wall).
+      selector:
+        entity:
+          filter:
+            domain: sensor
+            device_class: temperature
+    humidity_sensor:
+      name: Humidity sensor (optional)
+      description: >-
+        The cabinet's humidity sensor. Leave empty to skip humidity
+        monitoring.
+      default: []
+      selector:
+        entity:
+          multiple: true
+          filter:
+            domain: sensor
+            device_class: humidity
+
+    temperature:
+      name: Temperature limits
+      icon: mdi:thermometer
+      input:
+        temperature_max:
+          name: Too warm above
+          description: >-
+            Alert when the temperature stays above this value. Wine is
+            stored at 10–14 °C; 16 °C catches a failed compressor or a door
+            left open without reacting to normal cycling.
+          default: 16
+          selector:
+            number:
+              min: 0
+              max: 30
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        temperature_min:
+          name: Too cold below
+          description: >-
+            Alert when the temperature stays below this value — a thermostat
+            fault, or a setpoint changed by mistake.
+          default: 8
+          selector:
+            number:
+              min: -5
+              max: 20
+              step: 0.5
+              unit_of_measurement: °C
+              mode: box
+        temperature_duration:
+          name: Temperature alert delay
+          description: >-
+            How long the temperature must stay out of range before an alert
+            is sent. A compressor cabinet cycles about ±1 °C around its
+            setpoint, and loading a dozen room-temperature bottles pushes it
+            up for a while — 60 minutes filters both.
+          default: 60
+          selector:
+            number:
+              min: 1
+              max: 1440
+              unit_of_measurement: minutes
+              mode: box
+
+    humidity:
+      name: Humidity limits
+      icon: mdi:water-percent
+      collapsed: true
+      input:
+        humidity_max:
+          name: Too humid above
+          description: >-
+            Alert when humidity stays above this value. 50–70 % is ideal;
+            above ~75 % for weeks labels start to mould.
+          default: 78
+          selector:
+            number:
+              min: 30
+              max: 100
+              unit_of_measurement: "%"
+              mode: box
+        humidity_min:
+          name: Too dry below
+          description: >-
+            Alert when humidity stays below this value. Compressor cabinets
+            tend to run dry; below ~45 % for long periods corks can shrink.
+          default: 45
+          selector:
+            number:
+              min: 0
+              max: 70
+              unit_of_measurement: "%"
+              mode: box
+        humidity_duration:
+          name: Humidity alert delay
+          description: >-
+            How long humidity must stay out of range before an alert is sent.
+            Humidity only matters over days, so a long delay is fine.
+          default: 1440
+          selector:
+            number:
+              min: 1
+              max: 10080
+              unit_of_measurement: minutes
+              mode: box
+
+    swing:
+      name: Temperature swing (optional)
+      icon: mdi:chart-bell-curve
+      collapsed: true
+      input:
+        swing_sensor:
+          name: Temperature swing sensor
+          description: >-
+            A statistics helper on the temperature sensor with
+            characteristic "Distance (absolute)" (max minus min) over the
+            last 24 hours — see the documentation for setup. Large swings
+            harm wine more than a slightly wrong absolute temperature. Leave
+            empty to skip this check.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                domain: sensor
+        swing_max:
+          name: Maximum swing
+          description: >-
+            Alert when the 24-hour max–min distance exceeds this value. A
+            healthy cabinet stays within 2–3 K; more means the door is
+            opened too often, the ambient temperature swings a lot, or the
+            cabinet is undersized for the room.
+          default: 3
+          selector:
+            number:
+              min: 0.5
+              max: 15
+              step: 0.5
+              unit_of_measurement: K
+              mode: box
+
+    notifications:
+      name: Notifications
+      icon: mdi:bell-ring
+      input:
+        notify_actions:
+          name: Notification actions
+          description: >-
+            Actions to run for every alert and recovery, e.g. a mobile app
+            notification. The variables `title` and `message` are available
+            inside these actions, so a notify action can simply use
+            title: "{{ title }}" and message: "{{ message }}".
+          default: []
+          selector:
+            action: {}
+        notify_on_recovery:
+          name: Also notify when conditions are back to normal
+          default: true
+          selector:
+            boolean: {}
+        persistent_notification:
+          name: Show alerts as persistent notifications in Home Assistant
+          description: >-
+            Creates a persistent notification per alert type and dismisses
+            it automatically on recovery, so the notification drawer always
+            shows the cabinet's current problems.
+          default: true
+          selector:
+            boolean: {}
+        offline_duration:
+          name: Sensor offline delay
+          description: >-
+            Alert when the temperature sensor has been unavailable for this
+            long — a Shelly H&T with a flat battery or Wi-Fi trouble reports
+            nothing, which is as bad as a warm cabinet you don't know about.
+          default: 30
+          selector:
+            number:
+              min: 1
+              max: 1440
+              unit_of_measurement: minutes
+              mode: box
+
+# Alerts and recoveries are independent events; queue them so a recovery
+# arriving while an alert is still being sent is never dropped.
+mode: queued
+max: 10
+max_exceeded: silent
+
+triggers:
+  # --- Temperature -----------------------------------------------------
+  - trigger: numeric_state
+    id: temp_high
+    entity_id: !input temperature_sensor
+    above: !input temperature_max
+    for:
+      minutes: !input temperature_duration
+  - trigger: numeric_state
+    id: temp_low
+    entity_id: !input temperature_sensor
+    below: !input temperature_min
+    for:
+      minutes: !input temperature_duration
+  # Recovery: back inside the band for 10 minutes. numeric_state only fires
+  # on crossing into the range, so a cabinet that is fine never "recovers".
+  - trigger: numeric_state
+    id: temp_ok
+    entity_id: !input temperature_sensor
+    above: !input temperature_min
+    below: !input temperature_max
+    for:
+      minutes: 10
+
+  # --- Humidity (optional; an empty entity list never fires) -----------
+  - trigger: numeric_state
+    id: hum_high
+    entity_id: !input humidity_sensor
+    above: !input humidity_max
+    for:
+      minutes: !input humidity_duration
+  - trigger: numeric_state
+    id: hum_low
+    entity_id: !input humidity_sensor
+    below: !input humidity_min
+    for:
+      minutes: !input humidity_duration
+  - trigger: numeric_state
+    id: hum_ok
+    entity_id: !input humidity_sensor
+    above: !input humidity_min
+    below: !input humidity_max
+    for:
+      minutes: 60
+
+  # --- Sensor availability ---------------------------------------------
+  - trigger: state
+    id: offline
+    entity_id: !input temperature_sensor
+    to:
+      - unavailable
+      - unknown
+    for:
+      minutes: !input offline_duration
+  - trigger: state
+    id: online
+    entity_id: !input temperature_sensor
+    from:
+      - unavailable
+      - unknown
+    for:
+      minutes: 1
+
+  # --- 24 h swing (optional) -------------------------------------------
+  - trigger: numeric_state
+    id: swing
+    entity_id: !input swing_sensor
+    above: !input swing_max
+    for:
+      minutes: 30
+  - trigger: numeric_state
+    id: swing_ok
+    entity_id: !input swing_sensor
+    below: !input swing_max
+    for:
+      minutes: 60
+
+variables:
+  cabinet_name: !input cabinet_name
+  temperature_min: !input temperature_min
+  temperature_max: !input temperature_max
+  temperature_duration: !input temperature_duration
+  humidity_min: !input humidity_min
+  humidity_max: !input humidity_max
+  humidity_duration: !input humidity_duration
+  swing_max: !input swing_max
+  offline_duration: !input offline_duration
+  notify_on_recovery: !input notify_on_recovery
+  persistent: !input persistent_notification
+  kind: "{{ trigger.id }}"
+  is_recovery: "{{ kind in ['temp_ok', 'hum_ok', 'online', 'swing_ok'] }}"
+  # One persistent notification per topic, so a humidity alert never hides
+  # a temperature alert and a recovery dismisses exactly its own alert.
+  topic: >-
+    {{ {'temp_high': 'temperature', 'temp_low': 'temperature',
+        'temp_ok': 'temperature', 'hum_high': 'humidity',
+        'hum_low': 'humidity', 'hum_ok': 'humidity', 'offline': 'sensor',
+        'online': 'sensor', 'swing': 'swing', 'swing_ok': 'swing'}[kind] }}
+  notification_id: "wine_cabinet_{{ cabinet_name | slugify }}_{{ topic }}"
+  value: "{{ states(trigger.entity_id) }}"
+  unit: "{{ state_attr(trigger.entity_id, 'unit_of_measurement') or '' }}"
+  title: >-
+    {{ cabinet_name }}: {{ 'back to normal' if is_recovery else 'alert' }}
+  message: >-
+    {% if kind == 'temp_high' %}
+      Temperature is {{ value }} {{ unit }} — above {{ temperature_max }} {{ unit }}
+      for more than {{ temperature_duration }} minutes. Check the door and
+      whether the compressor is running.
+    {% elif kind == 'temp_low' %}
+      Temperature is {{ value }} {{ unit }} — below {{ temperature_min }} {{ unit }}
+      for more than {{ temperature_duration }} minutes. Check the setpoint
+      and the thermostat.
+    {% elif kind == 'temp_ok' %}
+      Temperature is back in range at {{ value }} {{ unit }}.
+    {% elif kind == 'hum_high' %}
+      Humidity is {{ value }} {{ unit }} — above {{ humidity_max }} {{ unit }}
+      for more than {{ '%g' | format(humidity_duration / 60) }} hours. Remove
+      any water dish and check for condensation.
+    {% elif kind == 'hum_low' %}
+      Humidity is {{ value }} {{ unit }} — below {{ humidity_min }} {{ unit }}
+      for more than {{ '%g' | format(humidity_duration / 60) }} hours. An open
+      dish of water on the bottom shelf fixes this.
+    {% elif kind == 'hum_ok' %}
+      Humidity is back in range at {{ value }} {{ unit }}.
+    {% elif kind == 'offline' %}
+      The temperature sensor has been unavailable for more than
+      {{ offline_duration }} minutes. Check its battery and Wi-Fi — the
+      cabinet is unmonitored until it is back.
+    {% elif kind == 'online' %}
+      The temperature sensor is back online, reading {{ value }} {{ unit }}.
+    {% elif kind == 'swing' %}
+      The temperature swung {{ value }} K over the last 24 hours (limit
+      {{ swing_max }} K). Frequent door openings or a large ambient swing —
+      stability matters more than the exact temperature.
+    {% elif kind == 'swing_ok' %}
+      The 24-hour temperature swing is back under {{ swing_max }} K.
+    {% endif %}
+
+actions:
+  - alias: Dismiss the persistent notification on recovery
+    if:
+      - condition: template
+        value_template: "{{ is_recovery and persistent }}"
+    then:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: "{{ notification_id }}"
+
+  - alias: Show the alert as a persistent notification
+    if:
+      - condition: template
+        value_template: "{{ not is_recovery and persistent }}"
+    then:
+      - action: persistent_notification.create
+        data:
+          notification_id: "{{ notification_id }}"
+          title: "{{ title }}"
+          message: "{{ message | trim }}"
+
+  - alias: Stop here for recoveries when recovery messages are disabled
+    condition: template
+    value_template: "{{ not is_recovery or notify_on_recovery }}"
+
+  - alias: Run the notification actions
+    sequence: !input notify_actions

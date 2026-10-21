@@ -51,6 +51,20 @@ is closed, unless the cover was moved in the meantime.
 
 [Code](automations/open_cover_on_door_open.yaml) · [Documentation](automations/open_cover_on_door_open.md) · [Community forum](https://community.home-assistant.io/t/open-cover-on-door-open-balcony-door-raises-the-shutter-with-optional-position-restore/1020575)
 
+### [Wine Cabinet Monitor](automations/wine_cabinet_monitor.md)
+
+Watches a wine cabinet's temperature (and optionally humidity) sensor and
+notifies you when conditions drift out of range — too warm, too cold, too
+humid, too dry, the sensor going offline, or too much temperature swing
+over a day. Duration guards filter normal compressor cycling and door
+openings, every alert gets a recovery message, and alerts show up as
+persistent notifications that clear themselves. Works with any
+temperature/humidity sensor, e.g. a Shelly H&T.
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fwine_cabinet_monitor.yaml)
+
+[Code](automations/wine_cabinet_monitor.yaml) · [Documentation](automations/wine_cabinet_monitor.md)
+
 ## License
 
 [MIT](LICENSE)
