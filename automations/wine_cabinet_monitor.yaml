@@ -214,9 +214,13 @@ blueprint:
               unit_of_measurement: minutes
               mode: box
 
-# Alerts and recoveries are independent events; queue them so a recovery
-# arriving while an alert is still being sent is never dropped.
-mode: queued
+# One run = one alert followed by its own recovery: the run sends the alert,
+# then waits for the value to come back into range before sending "back to
+# normal". A recovery can therefore never be sent without its alert (a short
+# excursion that ends before the alert delay produces nothing at all).
+# Parallel so temperature, humidity, sensor and swing alerts can each be
+# waiting for their recovery at the same time.
+mode: parallel
 max: 10
 max_exceeded: silent
 
@@ -234,15 +238,6 @@ triggers:
     below: !input temperature_min
     for:
       minutes: !input temperature_duration
-  # Recovery: back inside the band for 10 minutes. numeric_state only fires
-  # on crossing into the range, so a cabinet that is fine never "recovers".
-  - trigger: numeric_state
-    id: temp_ok
-    entity_id: !input temperature_sensor
-    above: !input temperature_min
-    below: !input temperature_max
-    for:
-      minutes: 10
 
   # --- Humidity (optional; an empty entity list never fires) -----------
   - trigger: numeric_state
@@ -257,13 +252,6 @@ triggers:
     below: !input humidity_min
     for:
       minutes: !input humidity_duration
-  - trigger: numeric_state
-    id: hum_ok
-    entity_id: !input humidity_sensor
-    above: !input humidity_min
-    below: !input humidity_max
-    for:
-      minutes: 60
 
   # --- Sensor availability ---------------------------------------------
   - trigger: state
@@ -274,14 +262,6 @@ triggers:
       - unknown
     for:
       minutes: !input offline_duration
-  - trigger: state
-    id: online
-    entity_id: !input temperature_sensor
-    from:
-      - unavailable
-      - unknown
-    for:
-      minutes: 1
 
   # --- 24 h swing (optional) -------------------------------------------
   - trigger: numeric_state
@@ -290,12 +270,6 @@ triggers:
     above: !input swing_max
     for:
       minutes: 30
-  - trigger: numeric_state
-    id: swing_ok
-    entity_id: !input swing_sensor
-    below: !input swing_max
-    for:
-      minutes: 60
 
 variables:
   cabinet_name: !input cabinet_name
@@ -310,19 +284,18 @@ variables:
   notify_on_recovery: !input notify_on_recovery
   persistent: !input persistent_notification
   kind: "{{ trigger.id }}"
-  is_recovery: "{{ kind in ['temp_ok', 'hum_ok', 'online', 'swing_ok'] }}"
+  # The sensor that raised the alert; its recovery is watched on the same one.
+  sensor: "{{ trigger.entity_id }}"
   # One persistent notification per topic, so a humidity alert never hides
   # a temperature alert and a recovery dismisses exactly its own alert.
   topic: >-
     {{ {'temp_high': 'temperature', 'temp_low': 'temperature',
-        'temp_ok': 'temperature', 'hum_high': 'humidity',
-        'hum_low': 'humidity', 'hum_ok': 'humidity', 'offline': 'sensor',
-        'online': 'sensor', 'swing': 'swing', 'swing_ok': 'swing'}[kind] }}
+        'hum_high': 'humidity', 'hum_low': 'humidity',
+        'offline': 'sensor', 'swing': 'swing'}[kind] }}
   notification_id: "wine_cabinet_{{ cabinet_name | slugify }}_{{ topic }}"
-  value: "{{ states(trigger.entity_id) }}"
-  unit: "{{ state_attr(trigger.entity_id, 'unit_of_measurement') or '' }}"
-  title: >-
-    {{ cabinet_name }}: {{ 'back to normal' if is_recovery else 'alert' }}
+  value: "{{ states(sensor) }}"
+  unit: "{{ state_attr(sensor, 'unit_of_measurement') or '' }}"
+  title: "{{ cabinet_name }}: alert"
   message: >-
     {% if kind == 'temp_high' %}
       Temperature is {{ value }} {{ unit }} — above {{ temperature_max }} {{ unit }}
@@ -332,8 +305,6 @@ variables:
       Temperature is {{ value }} {{ unit }} — below {{ temperature_min }} {{ unit }}
       for more than {{ temperature_duration }} minutes. Check the setpoint
       and the thermostat.
-    {% elif kind == 'temp_ok' %}
-      Temperature is back in range at {{ value }} {{ unit }}.
     {% elif kind == 'hum_high' %}
       Humidity is {{ value }} {{ unit }} — above {{ humidity_max }} {{ unit }}
       for more than {{ '%g' | format(humidity_duration / 60) }} hours. Remove
@@ -342,36 +313,21 @@ variables:
       Humidity is {{ value }} {{ unit }} — below {{ humidity_min }} {{ unit }}
       for more than {{ '%g' | format(humidity_duration / 60) }} hours. An open
       dish of water on the bottom shelf fixes this.
-    {% elif kind == 'hum_ok' %}
-      Humidity is back in range at {{ value }} {{ unit }}.
     {% elif kind == 'offline' %}
       The temperature sensor has been unavailable for more than
       {{ offline_duration }} minutes. Check its battery and Wi-Fi — the
       cabinet is unmonitored until it is back.
-    {% elif kind == 'online' %}
-      The temperature sensor is back online, reading {{ value }} {{ unit }}.
     {% elif kind == 'swing' %}
       The temperature swung {{ value }} K over the last 24 hours (limit
       {{ swing_max }} K). Frequent door openings or a large ambient swing —
       stability matters more than the exact temperature.
-    {% elif kind == 'swing_ok' %}
-      The 24-hour temperature swing is back under {{ swing_max }} K.
     {% endif %}
 
 actions:
-  - alias: Dismiss the persistent notification on recovery
-    if:
-      - condition: template
-        value_template: "{{ is_recovery and persistent }}"
-    then:
-      - action: persistent_notification.dismiss
-        data:
-          notification_id: "{{ notification_id }}"
-
   - alias: Show the alert as a persistent notification
     if:
       - condition: template
-        value_template: "{{ not is_recovery and persistent }}"
+        value_template: "{{ persistent }}"
     then:
       - action: persistent_notification.create
         data:
@@ -379,9 +335,80 @@ actions:
           title: "{{ title }}"
           message: "{{ message | trim }}"
 
-  - alias: Stop here for recoveries when recovery messages are disabled
-    condition: template
-    value_template: "{{ not is_recovery or notify_on_recovery }}"
+  - alias: Send the alert
+    sequence: !input notify_actions
 
-  - alias: Run the notification actions
+  - alias: Wait until the value is back in range
+    choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ topic == 'temperature' }}"
+        sequence:
+          - wait_for_trigger:
+              - trigger: numeric_state
+                entity_id: !input temperature_sensor
+                above: !input temperature_min
+                below: !input temperature_max
+                for:
+                  minutes: 10
+      - conditions:
+          - condition: template
+            value_template: "{{ topic == 'humidity' }}"
+        sequence:
+          - wait_for_trigger:
+              - trigger: numeric_state
+                entity_id: !input humidity_sensor
+                above: !input humidity_min
+                below: !input humidity_max
+                for:
+                  minutes: 60
+      - conditions:
+          - condition: template
+            value_template: "{{ topic == 'sensor' }}"
+        sequence:
+          - wait_for_trigger:
+              - trigger: state
+                entity_id: !input temperature_sensor
+                from:
+                  - unavailable
+                  - unknown
+      - conditions:
+          - condition: template
+            value_template: "{{ topic == 'swing' }}"
+        sequence:
+          - wait_for_trigger:
+              - trigger: numeric_state
+                entity_id: !input swing_sensor
+                below: !input swing_max
+                for:
+                  minutes: 60
+
+  - alias: Dismiss the persistent notification
+    if:
+      - condition: template
+        value_template: "{{ persistent }}"
+    then:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: "{{ notification_id }}"
+
+  - alias: Stop here when recovery messages are disabled
+    condition: template
+    value_template: "{{ notify_on_recovery }}"
+
+  - alias: Build the recovery message
+    variables:
+      title: "{{ cabinet_name }}: back to normal"
+      message: >-
+        {% if topic == 'temperature' %}
+          Temperature is back in range at {{ states(sensor) }} {{ unit }}.
+        {% elif topic == 'humidity' %}
+          Humidity is back in range at {{ states(sensor) }} {{ unit }}.
+        {% elif topic == 'sensor' %}
+          The temperature sensor is back online, reading {{ states(sensor) }} {{ unit }}.
+        {% elif topic == 'swing' %}
+          The 24-hour temperature swing is back under {{ swing_max }} K.
+        {% endif %}
+
+  - alias: Send the recovery
     sequence: !input notify_actions

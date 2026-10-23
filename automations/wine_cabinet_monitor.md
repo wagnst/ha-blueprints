@@ -104,32 +104,33 @@ cabinet is undersized for the room.
 
 ## How it works
 
-Every check is a pair of triggers with an id — an *alert* trigger with a
-long `for:` and a *recovery* trigger with a short one:
+Every check is one *alert* trigger with a long `for:`. The run it starts
+sends the alert, then **waits inside the same run** until the value is back
+in range, and only then sends the recovery and dismisses the persistent
+notification. A recovery can therefore never arrive without its alert: an
+excursion that ends before the alert delay produces nothing at all.
 
-| Check | Alert fires when … | Recovery fires when … |
+| Check | Alert fires when … | Recovery is sent when … |
 | --- | --- | --- |
 | Temperature | above *Too warm* or below *Too cold* for *alert delay* | back between the two limits for 10 min |
 | Humidity | above *Too humid* or below *Too dry* for *alert delay* | back between the two limits for 60 min |
-| Sensor | `unavailable`/`unknown` for *offline delay* | any value again for 1 min |
+| Sensor | `unavailable`/`unknown` for *offline delay* | any value again |
 | Swing | swing sensor above *Maximum swing* for 30 min | below it for 60 min |
 
-The trigger id selects the message text; the recovery dismisses the
-persistent notification of its own topic (temperature, humidity, sensor or
-swing), so a humidity alert never hides a temperature alert.
+The trigger id selects the message text and the topic (temperature,
+humidity, sensor or swing) of the persistent notification, so a humidity
+alert never hides a temperature alert.
 
-Numeric triggers fire on *crossing* a threshold. Two consequences worth
-knowing:
+Numeric triggers fire on *crossing* a threshold, so a cabinet that is
+already out of range when Home Assistant starts (or when the automation is
+created) does not alert until the value crosses back in and out again. If
+you want to be sure, check the sensor once after setting things up.
 
-- A cabinet that is already out of range when Home Assistant starts (or
-  when the automation is created) does not alert until the value crosses
-  back in and out again. If you want to be sure, check the sensor once
-  after setting things up.
-- Likewise there is no recovery message at startup for a cabinet that is
-  simply fine — recoveries only follow alerts.
-
-The automation runs in `queued` mode, so a recovery arriving while an alert
-is still being sent is never dropped.
+The automation runs in `parallel` mode, so a temperature alert and a
+humidity alert can each be waiting for their own recovery at the same time.
+Reloading automations or restarting Home Assistant while an alert is
+waiting ends that run: no recovery message is sent for it and its
+persistent notification stays until you dismiss it.
 
 ## Updating the blueprint
 
@@ -159,6 +160,10 @@ Existing automations pick up the new logic immediately after the re-import.
   probably already above the limit when the automation was created (see
   *How it works*). Let it drop below and rise again, or lower the limit
   briefly to force a crossing.
+- **"Back to normal" without an alert before it** — fixed in v2026.10.23;
+  re-import the blueprint. Earlier versions sent the recovery whenever the
+  value crossed back into range, even after an excursion too short to have
+  raised an alert.
 - **Alerts every hour from the same cabinet** — your limits are inside the
   cabinet's normal cycling band. A compressor cabinet cycles about ±1 K
   around the setpoint; keep *Too warm* at least 2 K above the setpoint, or
