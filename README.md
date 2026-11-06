@@ -59,7 +59,8 @@ humid, too dry, the sensor going offline, or too much temperature swing
 over a day. Duration guards filter normal compressor cycling and door
 openings, every alert gets a recovery message, and alerts show up as
 persistent notifications that clear themselves. Works with any
-temperature/humidity sensor, e.g. a Shelly H&T.
+temperature/humidity sensor, e.g. a Shelly H&T (humidity via a 2-hour
+mean helper, so compressor cycling can't suppress the alert).
 
 [![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fwagnst%2Fha-blueprints%2Freleases%2Flatest%2Fdownload%2Fwine_cabinet_monitor.yaml)
 
