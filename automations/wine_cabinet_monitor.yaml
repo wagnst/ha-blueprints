@@ -8,8 +8,9 @@ blueprint:
     normal compressor cycling and door openings never page you, and every
     alert is followed by a recovery message once conditions are back in
     range. Alerts are also shown as persistent notifications in Home
-    Assistant, which are dismissed automatically on recovery. No helper
-    entities required — the optional swing check uses one statistics helper.
+    Assistant, which are dismissed automatically on recovery. Temperature
+    needs no helper; humidity and the optional swing check each use one
+    statistics helper.
   domain: automation
   author: Steffen Wagner
   homeassistant:
@@ -40,7 +41,10 @@ blueprint:
       name: Humidity sensor (optional)
       description: >-
         The cabinet's humidity sensor. Leave empty to skip humidity
-        monitoring.
+        monitoring. Compressor cabinets pull humidity down several points
+        every cooling cycle; that dip resets the alert delay, so point this
+        at a Statistics helper (mean over 2 h) of the raw sensor rather
+        than the raw sensor itself — see the documentation.
       default: []
       selector:
         entity:

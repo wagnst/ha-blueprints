@@ -31,7 +31,8 @@ cabinet, notifications to your phone.
 
 - A temperature `sensor` entity with device class `temperature`.
 - Optionally a humidity `sensor` with device class `humidity`.
-- Optionally, for the swing check, a **statistics helper** on the
+- Optionally a **statistics helper** (2 h mean) on the humidity sensor — see
+  *Humidity sensor* below — and, for the swing check, one on the
   temperature sensor — see *Temperature swing* below.
 - Home Assistant 2024.10 or newer.
 
@@ -41,7 +42,7 @@ cabinet, notifications to your phone.
 | --- | --- | --- | --- |
 | Cabinet name | no | Wine cabinet | Used in notification titles and messages. One automation per cabinet — give each its own name. |
 | Temperature sensor | yes | – | The cabinet's temperature sensor. |
-| Humidity sensor | no | – | The cabinet's humidity sensor. Leave empty to skip humidity monitoring. |
+| Humidity sensor | no | – | A **smoothed** humidity value — see *Humidity sensor* below. Leave empty to skip humidity monitoring. |
 | **Temperature limits** | | | |
 | Too warm above | no | 16 °C | Alert when the temperature stays above this. Wine is stored at 10–14 °C; 16 °C catches real faults without reacting to cycling. |
 | Too cold below | no | 8 °C | Alert when the temperature stays below this. |
@@ -84,6 +85,25 @@ Messages look like:
 
 > **Garage cabinet A: back to normal** — Temperature is back in range at
 > 13.4 °C.
+
+### Humidity sensor (optional)
+
+Do **not** point the humidity input at the raw sensor. A compressor cabinet
+dries the air by several points every cooling cycle (typically a 5-point
+dip every 20–30 minutes), and Home Assistant restarts the *Humidity alert
+delay* every time the value drops back under the limit — so with a raw
+sensor the 24-hour delay never completes and no humidity alert can fire.
+
+Create a smoothed value once per cabinet, the same way as the swing helper:
+
+1. **Settings → Devices & services → Helpers → Create helper → Statistics**
+2. Input sensor: the cabinet's humidity sensor
+3. Characteristic: **Arithmetic mean**
+4. Max age: **2 hours** (leave *sampling size* empty, or large)
+5. Name it e.g. `Garage cabinet A humidity 2h mean`
+
+Select that helper as *Humidity sensor*. The recovery check uses the same
+smoothed value, so it is not fooled by a single dip either.
 
 ### Temperature swing (optional)
 
@@ -168,6 +188,10 @@ Existing automations pick up the new logic immediately after the re-import.
   cabinet's normal cycling band. A compressor cabinet cycles about ±1 K
   around the setpoint; keep *Too warm* at least 2 K above the setpoint, or
   lengthen the delay.
+- **No humidity alert although the cabinet sits at 80 %+** — the humidity
+  input points at the raw sensor. Every compressor cycle pulls the reading
+  under the limit for a few minutes and restarts the alert delay. Use the
+  2-hour mean helper described under *Humidity sensor*.
 - **Humidity alerts straight after loading bottles** — new bottles and an
   open door raise humidity for a day or two; the 24 h default delay covers
   this. Shorter delays will fire.
